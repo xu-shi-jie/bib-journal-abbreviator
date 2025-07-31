@@ -1,3 +1,12 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <regex>
+#include <algorithm>
+
+const char* journal_rules_raw = R"RULES(
 "Meteor" Forschungsergebnisse = "Meteor" Forschungsergeb.
 2D Materials = 2D Mater.
 3D Printing and Additive Manufacturing = 3D Print. Addit. Manuf.
@@ -15225,3 +15234,108 @@ Chess Life = Chess Life
 ZooKeys = ZooKeys
 Zootaxa = Zootaxa
 The EMBO Journal = EMBO J.
+)RULES";
+
+std::vector<std::string> parse_rules_reversed(const std::string& raw_text) {
+    std::vector<std::string> lines;
+    std::istringstream ss(raw_text);
+    std::string line;
+    while (std::getline(ss, line)) {
+        if (!line.empty())
+            lines.insert(lines.begin(), line); // reversed order
+    }
+    return lines;
+}
+
+std::string read_file(const std::string& path) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Error: Unable to open file " << path << std::endl;
+        exit(1);
+    }
+    std::ostringstream ss;
+    ss << file.rdbuf();
+    return ss.str();
+}
+
+std::string replace_journals(
+    const std::string& bibtexdb,
+    const std::vector<std::string>& rules,
+    bool remove_dot = false) {
+
+    std::string output = bibtexdb;
+
+    for (const auto& rule : rules) {
+        size_t eq_pos = rule.find(" = ");
+        if (eq_pos == std::string::npos) continue;
+
+        std::string pattern1 = rule.substr(0, eq_pos);
+        std::string pattern2 = rule.substr(eq_pos + 3);
+
+        if (remove_dot) {
+            pattern2.erase(std::remove(pattern2.begin(), pattern2.end(), '.'), pattern2.end());
+        }
+
+        std::regex rgx("journal\\s*=\\s*\\{\\s*" + std::regex_replace(pattern1, std::regex("\\."), "\\.") + "\\s*\\}",
+                      std::regex_constants::icase);
+        std::string replacement = "journal = {" + pattern2 + "}";
+
+        int count = 0;
+        std::string new_output;
+        std::sregex_iterator begin(output.begin(), output.end(), rgx);
+        std::sregex_iterator end;
+
+        size_t last_pos = 0;
+        for (auto it = begin; it != end; ++it) {
+            new_output += output.substr(last_pos, it->position() - last_pos);
+            new_output += replacement;
+            last_pos = it->position() + it->length();
+            ++count;
+        }
+        new_output += output.substr(last_pos);
+
+        if (count > 0) {
+            std::cout << "Replaced (" << count << "x) '" << pattern1 << "' FOR '" << pattern2 << "'\n";
+        }
+
+        output = std::move(new_output);
+    }
+
+    return output;
+}
+
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <input.bib> [nodot]" << std::endl;
+        return 1;
+    }
+
+    std::string input_path = argv[1];
+    bool nodot = (argc >= 3 && std::string(argv[2]) == "nodot");
+
+    std::string bibtexdb = read_file(input_path);
+
+    auto rules = parse_rules_reversed(journal_rules_raw);
+    std::string modified_bib = replace_journals(bibtexdb, rules, nodot);
+
+    std::string output_path = input_path;
+    size_t pos = output_path.rfind(".bib");
+    if (pos != std::string::npos) {
+        output_path.replace(pos, 4, "-abbr.bib");
+    } else {
+        output_path += "-abbr.bib";
+    }
+
+    std::ofstream out_file(output_path);
+    if (!out_file.is_open()) {
+        std::cerr << "Error: Could not write to output file: " << output_path << std::endl;
+        return 1;
+    }
+    out_file << modified_bib;
+    out_file.close();
+
+    std::cout << "Bibtex database with abbreviated files saved into " << output_path << std::endl;
+
+    return 0;
+}

@@ -1,11 +1,14 @@
-import os
-import re
 import sys
+import re
+import os
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 
 try:
     bibtexdb = open(sys.argv[1]).read()
 except:
-    print("Error: specify the file to be processed!")
+    print("Error: specify the file to be processed:", sys.argv[1])
+    exit(1)
 
 # get the direction of current script
 this_dir = os.path.dirname(os.path.abspath(__file__))
