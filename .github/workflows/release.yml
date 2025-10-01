@@ -3,8 +3,8 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*.*.*'  # 匹配版本标签，如 v1.0.0, v1.2.3 等
-  workflow_dispatch:  # 允许手动触发
+      - 'v*.*.*'
+  workflow_dispatch:
 
 jobs:
   build-and-release:
@@ -67,9 +67,6 @@ jobs:
           
           # Run the C++ version
           ./refabbr ref.bib
-          
-          # Or run the Python version
-          python3 main.v1.py ref.bib
           ```
         draft: false
         prerelease: false
